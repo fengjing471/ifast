@@ -11,6 +11,7 @@ public enum EnumErrorCode {
 
     ok(200, "请求成功")
     , unknowFail(500, "未知错误")
+    , illegalArgument(400, "参数校验异常")
     , pageNotFound(404, "页面不存在")
     , notAuthorization(405, "未授权")
     
@@ -38,6 +39,11 @@ public enum EnumErrorCode {
     , apiAuthorizationLoggedout(44002, "token已注销")
     , apiAuthorizationExpired(44003, "token已过期")
     , apiAuthorizationFailed(44004, "token认证失败")
+
+    , apiSmsSendFailed(44100, "短信发送失败")
+    , apiSmsSendFailed4ContentNull(44101, "短信发送失败")
+    , apiSmsCodeInvalid(44110, "短信验证码错误")
+
     ;
 
     private int code;

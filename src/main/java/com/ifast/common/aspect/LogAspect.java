@@ -1,13 +1,12 @@
 package com.ifast.common.aspect;
 
-import com.ifast.common.annotation.Log;
-import com.ifast.common.base.BaseDO;
-import com.ifast.common.dao.LogDao;
-import com.ifast.common.domain.LogDO;
-import com.ifast.common.utils.*;
-import com.ifast.sys.domain.UserDO;
-import org.apache.shiro.SecurityUtils;
-import org.apache.shiro.subject.Subject;
+import java.lang.reflect.Method;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.Map;
+
+import javax.servlet.http.HttpServletRequest;
+
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
@@ -20,11 +19,15 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
-import javax.servlet.http.HttpServletRequest;
-import java.lang.reflect.Method;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.Map;
+import com.ifast.common.annotation.Log;
+import com.ifast.common.base.BaseDO;
+import com.ifast.common.dao.LogDao;
+import com.ifast.common.domain.LogDO;
+import com.ifast.common.utils.HttpContextUtils;
+import com.ifast.common.utils.IPUtils;
+import com.ifast.common.utils.JSONUtils;
+import com.ifast.common.utils.ShiroUtils;
+import com.ifast.sys.domain.UserDO;
 
 /**
  * <pre>
@@ -96,30 +99,34 @@ public class LogAspect {
     @Around("logMapper()")
     public Object mapper(ProceedingJoinPoint point) throws Throwable {
     	String methodName = point.getSignature().getName();
-    	try {
-	    	Subject subject = SecurityUtils.getSubject();
-	    	if(subject.isAuthenticated()) {
-	    		switch(methodName) {
-	    		case "insert":
-	    		case "insertAllColumn":
-	    			Object insert = point.getArgs()[0];
-	    			if(insert instanceof BaseDO) {
-	    				((BaseDO)insert).setCreateBy(ShiroUtils.getUserId());
-	    			}
-	    			break;
-	    		case "update":
-	    		case "updateById":
-	    		case "updateAllColumnById":
-	    			Object update = point.getArgs()[0];
-	    			if(update instanceof BaseDO) {
-	    				((BaseDO)update).setUpdateBy(ShiroUtils.getUserId());
-	    			}
-	    			break;
-	    		}
-	    	}
-    	}catch(Exception ignore) {}
-    	log.info("call {}.{}{}", point.getTarget().getClass().getSimpleName(), methodName, Arrays.toString(point.getArgs()));
+    	boolean insertBy = false, updateBy = false;
+    	switch(methodName) {
+    	case "insert":
+    	case "insertAllColumn":
+    		insertBy = true;
+    		break;
+    	case "update":
+    	case "updateById":
+    	case "updateAllColumnById":
+    		updateBy = true;
+    		break;
+    	}
+    	if(insertBy || updateBy) {
+    		Object arg0 = point.getArgs()[0];
+    		if(arg0 instanceof BaseDO) {
+    			Long userId = ShiroUtils.getUserId();
+    			if(userId != null) {
+    				BaseDO baseDO = (BaseDO)arg0;
+    				if(insertBy) {
+    					baseDO.setCreateBy(userId);
+    				}else {
+    					baseDO.setUpdateBy(userId);
+    				}
+    			}
+    		}
+    	}
     	
+    	log.info("call {}.{}{}", point.getTarget().getClass().getSimpleName(), methodName, Arrays.toString(point.getArgs()));
     	long beginTime = System.currentTimeMillis();
     	Object result = point.proceed();
     	long time = System.currentTimeMillis() - beginTime;
@@ -148,38 +155,33 @@ public class LogAspect {
         // 请求的方法名
         String className = joinPoint.getTarget().getClass().getName();
         String methodName = signature.getName();
-        sysLog.setMethod(className + "." + methodName + "()");
-        // 请求的参数
-        Object[] args = joinPoint.getArgs();
-        Map<String, String[]> parameterMap = HttpContextUtils.getHttpServletRequest().getParameterMap();
-        try {
-            String params = JSONUtils.beanToJson(parameterMap);
-            int maxLength = 4999;
-            if(params.length() > maxLength){
-                params = params.substring(0, maxLength);
-            }
-            sysLog.setParams(params);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        // 获取request
+        String params = null;
         HttpServletRequest request = HttpContextUtils.getHttpServletRequest();
-        // 设置IP地址
-        sysLog.setIp(IPUtils.getIpAddr(request));
-        // 用户名
-        UserDO currUser = ShiroUtils.getSysUser();
-        if (null == currUser) {
-            if (null != sysLog.getParams()) {
-                sysLog.setUserId(-1L);
-                sysLog.setUsername(sysLog.getParams());
-            } else {
-                sysLog.setUserId(-1L);
-                sysLog.setUsername("获取用户信息为空");
-            }
-        } else {
-            sysLog.setUserId(ShiroUtils.getUserId());
-            sysLog.setUsername(ShiroUtils.getSysUser().getUsername());
+        if(request != null) {
+        	sysLog.setMethod(request.getMethod()+" "+request.getRequestURI());
+        	Map<String, String[]> parameterMap = request.getParameterMap();
+        	params = JSONUtils.beanToJson(parameterMap);
+        	// 设置IP地址
+        	sysLog.setIp(IPUtils.getIpAddr(request));
+        }else {
+        	sysLog.setMethod(className + "." + methodName + "()");
+        	Object[] args = joinPoint.getArgs();
+        	params = JSONUtils.beanToJson(args);
         }
+        int maxLength = 4999;
+        if(params.length() > maxLength){
+        	params = params.substring(0, maxLength);
+        }
+        sysLog.setParams(params);
+        // 用户名
+    	UserDO currUser = ShiroUtils.getSysUser();
+    	if (null == currUser) {
+    		sysLog.setUserId(-1L);
+    		sysLog.setUsername("");
+    	} else {
+    		sysLog.setUserId(currUser.getId());
+    		sysLog.setUsername(currUser.getUsername());
+    	}
         sysLog.setTime((int) time);
         // 系统当前时间
         Date date = new Date();

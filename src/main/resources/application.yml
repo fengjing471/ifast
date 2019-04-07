@@ -22,13 +22,13 @@ spring:
     generator:
       WRITE_NUMBERS_AS_STRINGS: true    
   profiles:
-    active: dev
+    active: @activatedProperties@
   http:
     multipart:
       max-file-size: 30Mb
       max-request-size: 30Mb
   redis:
-    host: 127.0.0.1
+#    host: 127.0.0.1
   devtools:
     restart:
       enabled: true

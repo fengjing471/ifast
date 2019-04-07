@@ -19,7 +19,7 @@ import java.util.Arrays;
  * <pre>
  * 定时任务
  * </pre>
- * 
+ *
  * <small> 2018年3月23日 | Aron</small>
  */
 @Controller
@@ -27,45 +27,30 @@ import java.util.Arrays;
 public class JobController extends AdminBaseController {
     @Autowired
     private JobService taskScheduleJobService;
-    
-    @Log("进入定时任务管理页面")
+
     @GetMapping()
     String taskScheduleJob() {
         return "common/job/job";
     }
-    
-    @Log("查询定时任务列表")
+
     @ResponseBody
     @GetMapping("/list")
     public Result<Page<TaskDO>> list(TaskDO taskDTO) {
-        // 查询列表数据
         Wrapper<TaskDO> wrapper = new EntityWrapper<TaskDO>(taskDTO);
         Page<TaskDO> page = taskScheduleJobService.selectPage(getPage(TaskDO.class), wrapper);
         return Result.ok(page);
     }
-    
-    @Log("进入定时任务添加页面")
+
     @GetMapping("/add")
     String add() {
         return "common/job/add";
     }
-    
-    @Log("进入定时任务编辑页面")
+
     @GetMapping("/edit/{id}")
     String edit(@PathVariable("id") Long id, Model model) {
         TaskDO job = taskScheduleJobService.selectById(id);
         model.addAttribute("job", job);
         return "common/job/edit";
-    }
-
-    /**
-     * 信息
-     */
-    @Log("根据id查询定时任务信息")
-    @RequestMapping("/info/{id}")
-    public Result<TaskDO> info(@PathVariable("id") Long id) {
-        TaskDO taskScheduleJob = taskScheduleJobService.selectById(id);
-        return Result.ok(taskScheduleJob);
     }
 
     /**
@@ -112,8 +97,8 @@ public class JobController extends AdminBaseController {
 
         return Result.ok();
     }
-    
-    @Log("根据id和cmd执行/停止定时任务")
+
+    @Log("启停定时任务")
     @PostMapping(value = "/changeJobStatus")
     @ResponseBody
     public Result<String> changeJobStatus(Long id, String cmd) {
@@ -130,6 +115,19 @@ public class JobController extends AdminBaseController {
             e.printStackTrace();
         }
         return Result.ok("任务" + label + "失败");
+    }
+
+    @Log("立即执行一次任务")
+    @PostMapping(value = "/runNowOnce")
+    @ResponseBody
+    public Result<String> runNowOnce(Long id) {
+        try {
+            taskScheduleJobService.runNowOnce(id);
+            return Result.ok("任务执行成功");
+        } catch (Exception e) {
+           log.error("执行任务失败",e);
+        }
+        return Result.ok("任务执行失败");
     }
 
 }
